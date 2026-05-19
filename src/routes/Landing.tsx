@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
-// Web3Forms — works on Vercel, sends to Blankspacetechnologies@gmail.com
+// Web3Forms — works on Vercel, sends to blankspacetechnologies@gmail.com
 // Setup: go to https://web3forms.com, enter your email, get an access key, paste it below.
 const WEB3FORMS_KEY = 'YOUR_WEB3FORMS_KEY';
 
@@ -91,8 +91,8 @@ function RequestForm({ compact = false }: { compact?: boolean }) {
       {status === 'error' && (
         <p style={{ textAlign: 'center', fontSize: 12, color: '#f87171', marginTop: 8, marginBottom: 0 }}>
           Something went wrong. Email us at{' '}
-          <a href="mailto:Blankspacetechnologies@gmail.com" style={{ color: '#f87171' }}>
-            Blankspacetechnologies@gmail.com
+          <a href="mailto:blankspacetechnologies@gmail.com" style={{ color: '#f87171' }}>
+            blankspacetechnologies@gmail.com
           </a>
         </p>
       )}
@@ -465,7 +465,7 @@ export function Landing() {
               onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.35)'}>
               Changelog
             </Link>
-            <a href="mailto:Blankspacetechnologies@gmail.com"
+            <a href="mailto:blankspacetechnologies@gmail.com"
               style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', textDecoration: 'none' }}
               onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.6)'}
               onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.35)'}>
@@ -475,11 +475,11 @@ export function Landing() {
         </div>
         <div style={{ borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
           <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>© 2025 Blankspace Technologies</span>
-          <a href="mailto:Blankspacetechnologies@gmail.com"
+          <a href="mailto:blankspacetechnologies@gmail.com"
             style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', textDecoration: 'none' }}
             onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.45)'}
             onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.2)'}>
-            Blankspacetechnologies@gmail.com
+            blankspacetechnologies@gmail.com
           </a>
         </div>
       </footer>

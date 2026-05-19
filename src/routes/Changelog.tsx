@@ -111,11 +111,11 @@ export function Changelog() {
       {/* Footer */}
       <footer style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: '28px 24px', maxWidth: 1100, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>© 2025 Blankspace Technologies</span>
-        <a href="mailto:Blankspacetechnologies@gmail.com"
+        <a href="mailto:blankspacetechnologies@gmail.com"
           style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', textDecoration: 'none' }}
           onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.45)'}
           onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.2)'}>
-          Blankspacetechnologies@gmail.com
+          blankspacetechnologies@gmail.com
         </a>
       </footer>
     </div>
