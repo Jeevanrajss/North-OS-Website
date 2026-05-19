@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 
 // Web3Forms — works on Vercel, sends to blankspacetechnologies@gmail.com
 // Setup: go to https://web3forms.com, enter your email, get an access key, paste it below.
-const WEB3FORMS_KEY = 'YOUR_WEB3FORMS_KEY';
+const WEB3FORMS_KEY = '5bd618a2-6535-4c01-bb84-cd6d0de60257';
 
 // ─────────────────────────────────────────────
 // Email request form
