@@ -1,18 +1,63 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
-// Web3Forms — works on Vercel, sends to blankspacetechnologies@gmail.com
-// Setup: go to https://web3forms.com, enter your email, get an access key, paste it below.
 const WEB3FORMS_KEY = '5bd618a2-6535-4c01-bb84-cd6d0de60257';
+const RELEASES_API = 'https://api.github.com/repos/Jeevanrajss/North-OS/releases/latest';
+
+type Platform = 'mac_arm' | 'mac_x64' | 'win';
+
+interface ReleaseAssets {
+  mac_arm?: string;
+  mac_x64?: string;
+  win?: string;
+  version: string;
+}
+
+function useLatestRelease() {
+  const [release, setRelease] = useState<ReleaseAssets | null>(null);
+  useEffect(() => {
+    fetch(RELEASES_API, { headers: { Accept: 'application/vnd.github+json' } })
+      .then(r => r.json())
+      .then(data => {
+        const assets: Partial<ReleaseAssets> = { version: data.tag_name ?? '' };
+        for (const a of data.assets ?? []) {
+          const n: string = a.name ?? '';
+          const url: string = a.browser_download_url ?? '';
+          if (n.endsWith('.dmg') && n.toLowerCase().includes('arm64')) assets.mac_arm = url;
+          else if (n.endsWith('.dmg')) assets.mac_x64 = url;
+          else if (n.endsWith('.exe') || n.endsWith('.msi')) assets.win = url;
+        }
+        setRelease(assets as ReleaseAssets);
+      })
+      .catch(() => setRelease({ version: '' }));
+  }, []);
+  return release;
+}
+
+function detectOS(): Platform {
+  const ua = navigator.userAgent.toLowerCase();
+  if (ua.includes('win')) return 'win';
+  if (ua.includes('mac') && ua.includes('arm')) return 'mac_arm';
+  if (ua.includes('mac')) return 'mac_arm';
+  return 'mac_arm';
+}
+
+const PLATFORM_LABELS: Record<Platform, string> = {
+  mac_arm: '🍎 Mac — Apple Silicon',
+  mac_x64: '🍎 Mac — Intel',
+  win: '🪟 Windows',
+};
 
 // ─────────────────────────────────────────────
-// Email request form
+// Email + download form
 // ─────────────────────────────────────────────
-function RequestForm({ compact = false }: { compact?: boolean }) {
+function RequestForm({ release, compact = false }: { release: ReleaseAssets | null; compact?: boolean }) {
   const [email, setEmail] = useState('');
+  const [platform, setPlatform] = useState<Platform>(detectOS);
   const [touched, setTouched] = useState(false);
   const [status, setStatus] = useState<'idle' | 'submitting' | 'done' | 'error'>('idle');
   const invalid = touched && !email.trim().match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/);
+  const downloadUrl = release?.[platform];
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -26,13 +71,18 @@ function RequestForm({ compact = false }: { compact?: boolean }) {
         body: JSON.stringify({
           access_key: WEB3FORMS_KEY,
           email: email.trim(),
-          subject: 'North OS — Access Request',
-          message: `New access request from ${email.trim()}`,
+          platform,
+          subject: `North OS — Download (${platform})`,
+          message: `Download request from ${email.trim()} for ${platform}`,
         }),
       });
       const data = await res.json();
-      if (data.success) setStatus('done');
-      else setStatus('error');
+      if (data.success) {
+        setStatus('done');
+        if (downloadUrl) window.location.href = downloadUrl;
+      } else {
+        setStatus('error');
+      }
     } catch {
       setStatus('error');
     }
@@ -41,16 +91,33 @@ function RequestForm({ compact = false }: { compact?: boolean }) {
   if (status === 'done') {
     return (
       <div style={{ textAlign: 'center', padding: compact ? '8px 0' : '16px 0' }}>
-        <div style={{ fontSize: 32, marginBottom: 10 }}>✉️</div>
+        <div style={{ fontSize: 32, marginBottom: 10 }}>⬇️</div>
         <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.6)', margin: 0 }}>
-          Got it! We'll be in touch soon.
+          {downloadUrl ? 'Download starting… check your downloads folder.' : "You're on the list! We'll be in touch soon."}
         </p>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate>
+    <form onSubmit={handleSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+      {/* Platform selector */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+        {(['mac_arm', 'mac_x64', 'win'] as Platform[]).map(p => (
+          <button key={p} type="button" onClick={() => setPlatform(p)}
+            style={{
+              padding: '7px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 500,
+              border: platform === p ? '1px solid rgba(107,124,230,0.6)' : '1px solid rgba(255,255,255,0.1)',
+              background: platform === p ? 'rgba(107,124,230,0.18)' : 'rgba(255,255,255,0.03)',
+              color: platform === p ? '#9b8cff' : 'rgba(255,255,255,0.45)',
+              transition: 'all .15s',
+            }}>
+            {PLATFORM_LABELS[p]}
+          </button>
+        ))}
+      </div>
+
+      {/* Email + submit */}
       <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
         <div>
           <input
@@ -85,7 +152,7 @@ function RequestForm({ compact = false }: { compact?: boolean }) {
             opacity: status === 'submitting' ? 0.7 : 1,
             letterSpacing: '-0.01em', whiteSpace: 'nowrap',
           }}>
-          {status === 'submitting' ? 'Sending…' : 'Request Access →'}
+          {status === 'submitting' ? 'Preparing…' : 'Download Free →'}
         </button>
       </div>
       {status === 'error' && (
@@ -260,6 +327,8 @@ const PROVIDERS = [
 // Main Landing component
 // ─────────────────────────────────────────────
 export function Landing() {
+  const release = useLatestRelease();
+
   return (
     <div style={{ fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}
       className="min-h-screen bg-[#0a0a0f] text-white overflow-x-hidden">
@@ -321,7 +390,7 @@ export function Landing() {
         </p>
 
         <div id="request-access">
-          <RequestForm />
+          <RequestForm release={release} />
         </div>
 
         <p style={{ marginTop: 16, fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>
@@ -436,7 +505,7 @@ export function Landing() {
           <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.4)', maxWidth: 400, margin: '0 auto 40px', lineHeight: 1.65 }}>
             Private, powerful, and runs entirely on your machine.
           </p>
-          <RequestForm compact />
+          <RequestForm release={release} compact />
         </div>
       </section>
 
