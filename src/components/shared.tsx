@@ -114,10 +114,10 @@ export function Eyebrow({ children, live }: { children: ReactNode; live?: boolea
 }
 
 /* ---- Reveal on scroll ---- */
-export function Reveal({ children, delay = 0, as: As = 'div', ...rest }: {
-  children: ReactNode; delay?: number; as?: keyof JSX.IntrinsicElements; [k: string]: unknown;
+export function Reveal({ children, delay = 0, style, ...rest }: {
+  children: ReactNode; delay?: number; style?: React.CSSProperties; [k: string]: unknown;
 }) {
-  const ref = useRef<HTMLElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
   const [shown, setShown] = useState(false);
   useEffect(() => {
     const el = ref.current; if (!el) return;
@@ -128,10 +128,11 @@ export function Reveal({ children, delay = 0, as: As = 'div', ...rest }: {
     return () => io.disconnect();
   }, []);
   return (
-    <As ref={ref as never} className={`reveal${shown ? ' in' : ''}`}
-      style={{ transitionDelay: `${delay}ms` }} {...(rest as object)}>
+    <div ref={ref} className={`reveal${shown ? ' in' : ''}`}
+      style={{ transitionDelay: `${delay}ms`, ...style }}
+      {...(rest as React.HTMLAttributes<HTMLDivElement>)}>
       {children}
-    </As>
+    </div>
   );
 }
 

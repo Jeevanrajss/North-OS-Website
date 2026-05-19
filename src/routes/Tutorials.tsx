@@ -52,7 +52,7 @@ const SECTIONS: Section[] = [
       {
         heading: '4. Install from source (optional)',
         body: 'If you prefer to run directly from code — no installer needed:',
-        code: '# macOS / Linux\ngit clone https://github.com/Jeevanrajss/North-OS.git\ncd North-OS\nbash setup.sh\n\n# Windows\ngit clone https://github.com/Jeevanrajss/North-OS.git\ncd North-OS\nsetup.bat',
+        code: '# Download the installer from the home page\n# and follow the on-screen instructions.\n\n# macOS: drag to Applications, then open\n# Windows: run the .exe and click "More info → Run anyway"',
         note: 'Requires Python 3.11+ and Node.js 18+. The setup script installs everything and opens the app automatically.',
       },
       {
