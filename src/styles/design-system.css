@@ -431,7 +431,7 @@ img { display: block; max-width: 100%; }
 .stat .delta { color: var(--accent-green); font: 500 12px/1 var(--font-mono); margin-top: 8px; }
 
 /* ---- Email form ---- */
-.email-form { display: flex; flex-direction: column; gap: 12px; max-width: 480px; margin: 0 auto; }
+.email-form { display: flex; flex-direction: column; gap: 12px; max-width: 480px; margin: 0; }
 .email-form .platform-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
 .plat-btn { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 10px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-default); color: var(--fg-2); font: 500 13px/1 var(--font-sans); transition: var(--transition); cursor: pointer; }
 .plat-btn:hover { background: rgba(255,255,255,0.08); border-color: var(--border-strong); color: var(--fg-1); }
