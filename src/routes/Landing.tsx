@@ -1,33 +1,26 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { Icon, Eyebrow, Button, Reveal, ModuleCard, Counter } from '../components/shared';
 
 const WEB3FORMS_KEY = '5bd618a2-6535-4c01-bb84-cd6d0de60257';
 const RELEASES_API = 'https://api.github.com/repos/Jeevanrajss/North-OS/releases/latest';
 
 type Platform = 'mac_arm' | 'mac_x64' | 'win';
-
-interface ReleaseAssets {
-  mac_arm?: string;
-  mac_x64?: string;
-  win?: string;
-  version: string;
-}
+interface ReleaseAssets { mac_arm?: string; mac_x64?: string; win?: string; version: string; }
 
 function useLatestRelease() {
   const [release, setRelease] = useState<ReleaseAssets | null>(null);
   useEffect(() => {
-    fetch(RELEASES_API, { headers: { Accept: 'application/vnd.github+json' } })
+    fetch(RELEASES_API)
       .then(r => r.json())
       .then(data => {
-        const assets: Partial<ReleaseAssets> = { version: data.tag_name ?? '' };
-        for (const a of data.assets ?? []) {
-          const n: string = a.name ?? '';
-          const url: string = a.browser_download_url ?? '';
-          if (n.endsWith('.dmg') && n.toLowerCase().includes('arm64')) assets.mac_arm = url;
-          else if (n.endsWith('.dmg')) assets.mac_x64 = url;
-          else if (n.endsWith('.exe') || n.endsWith('.msi')) assets.win = url;
+        const assets: ReleaseAssets = { version: data.tag_name || '' };
+        for (const a of (data.assets || [])) {
+          const n: string = a.name.toLowerCase();
+          if (n.includes('arm64') && n.endsWith('.dmg')) assets.mac_arm = a.browser_download_url;
+          else if (n.endsWith('.dmg')) assets.mac_x64 = a.browser_download_url;
+          else if (n.endsWith('.exe')) assets.win = a.browser_download_url;
         }
-        setRelease(assets as ReleaseAssets);
+        setRelease(assets);
       })
       .catch(() => setRelease({ version: '' }));
   }, []);
@@ -35,523 +28,398 @@ function useLatestRelease() {
 }
 
 function detectOS(): Platform {
-  const ua = navigator.userAgent.toLowerCase();
-  if (ua.includes('win')) return 'win';
-  if (ua.includes('mac') && ua.includes('arm')) return 'mac_arm';
-  if (ua.includes('mac')) return 'mac_arm';
+  const ua = navigator.userAgent;
+  if (/Windows/.test(ua)) return 'win';
   return 'mac_arm';
 }
 
-const PLATFORM_LABELS: Record<Platform, string> = {
-  mac_arm: '🍎 Mac — Apple Silicon',
-  mac_x64: '🍎 Mac — Intel',
-  win: '🪟 Windows',
+const PLATFORM_LABELS: Record<Platform, { label: string; icon: string }> = {
+  mac_arm: { label: 'Mac — Apple Silicon', icon: 'apple' },
+  mac_x64: { label: 'Mac — Intel', icon: 'apple' },
+  win: { label: 'Windows', icon: 'windows' },
 };
 
-// ─────────────────────────────────────────────
-// Email + download form
-// ─────────────────────────────────────────────
 function RequestForm({ release, compact = false }: { release: ReleaseAssets | null; compact?: boolean }) {
+  const [platform, setPlatform] = useState<Platform>('mac_arm');
   const [email, setEmail] = useState('');
-  const [platform, setPlatform] = useState<Platform>(detectOS);
-  const [touched, setTouched] = useState(false);
-  const [status, setStatus] = useState<'idle' | 'submitting' | 'done' | 'error'>('idle');
-  const invalid = touched && !email.trim().match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/);
-  const downloadUrl = release?.[platform];
+  const [status, setStatus] = useState<'idle' | 'loading' | 'done'>('idle');
+
+  useEffect(() => { setPlatform(detectOS()); }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setTouched(true);
-    if (!email.trim().match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) return;
-    setStatus('submitting');
+    if (!email) return;
+    setStatus('loading');
     try {
-      const res = await fetch('https://api.web3forms.com/submit', {
+      await fetch('https://api.web3forms.com/submit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           access_key: WEB3FORMS_KEY,
-          email: email.trim(),
-          platform,
-          subject: `North OS — Download (${platform})`,
-          message: `Download request from ${email.trim()} for ${platform}`,
+          email,
+          subject: `North OS download — ${PLATFORM_LABELS[platform].label}`,
+          message: `Platform: ${PLATFORM_LABELS[platform].label}\nVersion: ${release?.version || 'latest'}`,
         }),
       });
-      const data = await res.json();
-      if (data.success) {
-        setStatus('done');
-        if (downloadUrl) window.location.href = downloadUrl;
-      } else {
-        setStatus('error');
-      }
-    } catch {
-      setStatus('error');
-    }
+    } catch { /* silent */ }
+    setStatus('done');
+    const url = release?.[platform];
+    if (url) setTimeout(() => { window.location.href = url; }, 400);
   }
 
   if (status === 'done') {
+    return <div className="email-success">Download starting… check your downloads folder.</div>;
+  }
+
+  if (compact) {
     return (
-      <div style={{ textAlign: 'center', padding: compact ? '8px 0' : '16px 0' }}>
-        <div style={{ fontSize: 32, marginBottom: 10 }}>⬇️</div>
-        <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.6)', margin: 0 }}>
-          {downloadUrl ? 'Download starting… check your downloads folder.' : "You're on the list! We'll be in touch soon."}
-        </p>
-      </div>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
+          {(Object.entries(PLATFORM_LABELS) as [Platform, { label: string; icon: string }][]).map(([p, { label, icon }]) => (
+            <button key={p} type="button"
+              className={`plat-btn${platform === p ? ' selected' : ''}`}
+              onClick={() => setPlatform(p)}>
+              <Icon name={icon} size={13} />{label}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <input type="email" required placeholder="your@email.com" value={email}
+            onChange={e => setEmail(e.target.value)}
+            style={{ padding: '12px 16px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-default)', color: 'var(--fg-1)', font: '400 14px/1 var(--font-sans)', outline: 'none', minWidth: 220 }} />
+          <button type="submit" className="btn btn-primary btn-lg" disabled={status === 'loading'}>
+            <Icon name="download" />
+            <span>{status === 'loading' ? 'Starting…' : 'Request Access'}</span>
+            <Icon name="arrow" />
+            <span className="shimmer" />
+          </button>
+        </div>
+        <div style={{ color: 'var(--fg-4)', fontSize: 12, fontFamily: 'var(--font-mono)' }}>
+          We&apos;ll send release notes. Unsubscribe any time.
+        </div>
+      </form>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-      {/* Platform selector */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-        {(['mac_arm', 'mac_x64', 'win'] as Platform[]).map(p => (
-          <button key={p} type="button" onClick={() => setPlatform(p)}
-            style={{
-              padding: '7px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 500,
-              border: platform === p ? '1px solid rgba(107,124,230,0.6)' : '1px solid rgba(255,255,255,0.1)',
-              background: platform === p ? 'rgba(107,124,230,0.18)' : 'rgba(255,255,255,0.03)',
-              color: platform === p ? '#9b8cff' : 'rgba(255,255,255,0.45)',
-              transition: 'all .15s',
-            }}>
-            {PLATFORM_LABELS[p]}
+    <form onSubmit={handleSubmit} className="email-form">
+      <div className="platform-row">
+        {(Object.entries(PLATFORM_LABELS) as [Platform, { label: string; icon: string }][]).map(([p, { label, icon }]) => (
+          <button key={p} type="button"
+            className={`plat-btn${platform === p ? ' selected' : ''}`}
+            onClick={() => setPlatform(p)}>
+            <Icon name={icon} size={13} />{label}
           </button>
         ))}
       </div>
-
-      {/* Email + submit */}
-      <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-        <div>
-          <input
-            type="email"
-            placeholder="your@email.com"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            onBlur={() => setTouched(true)}
-            style={{
-              padding: '12px 18px', borderRadius: 11, width: compact ? 220 : 260,
-              background: 'rgba(255,255,255,0.06)',
-              border: `1px solid ${invalid ? '#f87171' : 'rgba(255,255,255,0.12)'}`,
-              color: 'white', fontSize: 14, outline: 'none', boxSizing: 'border-box',
-            }}
-            onFocus={e => { if (!invalid) e.currentTarget.style.borderColor = 'rgba(107,124,230,0.55)'; }}
-            onBlurCapture={e => { if (!invalid) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; }}
-          />
-          {invalid && (
-            <p style={{ fontSize: 12, color: '#f87171', marginTop: 4, marginBottom: 0, textAlign: 'left' }}>
-              Enter a valid email.
-            </p>
-          )}
-        </div>
-        <button
-          type="submit"
-          disabled={status === 'submitting'}
-          style={{
-            padding: '12px 24px', borderRadius: 11,
-            background: 'linear-gradient(135deg,#6b7ce6,#9b8cff)',
-            border: 'none', color: 'white', fontWeight: 600, fontSize: 14,
-            cursor: status === 'submitting' ? 'not-allowed' : 'pointer',
-            opacity: status === 'submitting' ? 0.7 : 1,
-            letterSpacing: '-0.01em', whiteSpace: 'nowrap',
-          }}>
-          {status === 'submitting' ? 'Preparing…' : 'Download Free →'}
+      <div className="email-row">
+        <input type="email" required placeholder="your@email.com"
+          value={email} onChange={e => setEmail(e.target.value)} />
+        <button type="submit" className="btn btn-primary btn-lg" disabled={status === 'loading'}>
+          <Icon name="download" />
+          <span>{status === 'loading' ? 'Starting…' : 'Request Access'}</span>
+          <Icon name="arrow" />
+          <span className="shimmer" />
         </button>
       </div>
-      {status === 'error' && (
-        <p style={{ textAlign: 'center', fontSize: 12, color: '#f87171', marginTop: 8, marginBottom: 0 }}>
-          Something went wrong. Email us at{' '}
-          <a href="mailto:blankspacetechnologies@gmail.com" style={{ color: '#f87171' }}>
-            blankspacetechnologies@gmail.com
-          </a>
-        </p>
-      )}
+      <div style={{ color: 'var(--fg-4)', fontSize: 12, fontFamily: 'var(--font-mono)' }}>
+        We&apos;ll send release notes. Unsubscribe any time.
+      </div>
     </form>
   );
 }
 
-// ─────────────────────────────────────────────
-// Screenshot mock frames
-// ─────────────────────────────────────────────
-const SCREENS = [
-  {
-    title: 'Dashboard',
-    desc: 'Daily overview of habits, journal mood, spending, and upcoming subscriptions.',
-    mockup: (
-      <div style={{ background: '#0e0e17', borderRadius: 10, padding: '16px', minHeight: 200 }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          {['Habits', 'Journal', 'Finance', 'Subs'].map(l => (
-            <div key={l} style={{ flex: 1, borderRadius: 8, padding: '10px 8px', background: 'rgba(107,124,230,0.1)', border: '1px solid rgba(107,124,230,0.2)', textAlign: 'center' }}>
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginBottom: 4 }}>{l}</div>
-              <div style={{ fontSize: 18, color: '#9b8cff', fontWeight: 700 }}>{['4/5', '✓', '₹12k', '3'][['Habits','Journal','Finance','Subs'].indexOf(l)]}</div>
-            </div>
-          ))}
-        </div>
-        <div style={{ borderRadius: 8, padding: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', marginBottom: 8 }}>
-          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginBottom: 6 }}>TODAY'S HABITS</div>
-          {['Morning run ✓', 'Reading ✓', 'Meditation', 'Cold shower'].map((h, i) => (
-            <div key={h} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: i < 3 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
-              <div style={{ width: 14, height: 14, borderRadius: '50%', background: h.includes('✓') ? '#9b8cff' : 'rgba(255,255,255,0.08)', border: h.includes('✓') ? 'none' : '1px solid rgba(255,255,255,0.15)', flexShrink: 0 }} />
-              <span style={{ fontSize: 11, color: h.includes('✓') ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.4)' }}>{h.replace(' ✓', '')}</span>
-            </div>
-          ))}
-        </div>
+function FloatChip({ cls, ico, color, bg, label, sub }: {
+  cls: string; ico: string; color: string; bg: string; label: string; sub: string;
+}) {
+  return (
+    <div className={`float-chip ${cls}`}>
+      <div className="ico" style={{ background: bg, color }}>
+        <Icon name={ico} size={14} />
       </div>
-    ),
-  },
-  {
-    title: 'Journal',
-    desc: 'A calm writing space with daily prompts, mood tracking, and AI-generated reflections.',
-    mockup: (
-      <div style={{ background: '#0e0e17', borderRadius: 10, padding: 16, minHeight: 200 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>Mon, 19 May</span>
-          <div style={{ display: 'flex', gap: 4 }}>
-            {['😊','😐','😔'].map((m, i) => <span key={m} style={{ fontSize: 16, opacity: i === 0 ? 1 : 0.3, cursor: 'pointer' }}>{m}</span>)}
-          </div>
-        </div>
-        <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 8, padding: 12, marginBottom: 10, border: '1px solid rgba(255,255,255,0.05)' }}>
-          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.7, margin: 0 }}>
-            Today was productive. Finished the notification system and ran a full code review. Feeling clear-headed and focused…
-          </p>
-        </div>
-        <div style={{ borderRadius: 8, padding: 12, background: 'rgba(107,124,230,0.07)', border: '1px solid rgba(107,124,230,0.18)' }}>
-          <div style={{ fontSize: 10, color: '#9b8cff', marginBottom: 4 }}>✦ AI REFLECTION</div>
-          <p style={{ fontSize: 11, color: 'rgba(155,140,255,0.7)', lineHeight: 1.6, margin: 0 }}>You've mentioned clarity and focus 4 times this week. Your mood correlates with coding progress.</p>
-        </div>
+      <div>
+        <div style={{ color: 'var(--fg-1)' }}>{label}</div>
+        <div style={{ color: 'var(--fg-4)', fontSize: 10, marginTop: 2, fontFamily: 'var(--font-mono)' }}>{sub}</div>
       </div>
-    ),
-  },
-  {
-    title: 'Finance',
-    desc: 'Track income and expenses, set budgets, import bank statements, and get AI insights.',
-    mockup: (
-      <div style={{ background: '#0e0e17', borderRadius: 10, padding: 16, minHeight: 200 }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          {[['Income', '+₹85,000', '#4ade80'], ['Expense', '-₹42,300', '#f87171'], ['Net', '+₹42,700', '#9b8cff']].map(([l,v,c]) => (
-            <div key={l as string} style={{ flex: 1, borderRadius: 8, padding: '10px 8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginBottom: 4 }}>{l as string}</div>
-              <div style={{ fontSize: 13, color: c as string, fontWeight: 700, fontFamily: 'monospace' }}>{v as string}</div>
-            </div>
-          ))}
-        </div>
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginBottom: 6 }}>BY CATEGORY</div>
-          {[['Food & Dining', 68, '#9b8cff'], ['Transport', 42, '#6b7ce6'], ['Entertainment', 25, '#c084fc']].map(([cat, pct, col]) => (
-            <div key={cat as string} style={{ marginBottom: 6 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>{cat as string}</span>
-                <span style={{ fontSize: 10, color: col as string }}>{pct as number}%</span>
+    </div>
+  );
+}
+
+function ShowcaseArt({ image }: { image: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  function onMove(e: React.MouseEvent) {
+    const el = ref.current; if (!el) return;
+    const r = el.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - 0.5;
+    const y = (e.clientY - r.top) / r.height - 0.5;
+    el.style.transform = `perspective(1200px) rotateY(${x * 6}deg) rotateX(${-y * 4}deg)`;
+  }
+  function onLeave() { if (ref.current) ref.current.style.transform = ''; }
+  return (
+    <div className="showcase-art" ref={ref} onMouseMove={onMove} onMouseLeave={onLeave}>
+      <img src={image} alt="Module preview" />
+    </div>
+  );
+}
+
+function AIDemoSection() {
+  const [stage, setStage] = useState(0);
+  useEffect(() => {
+    const seq = [600, 1400, 1200, 1400, 1600, 1400];
+    let i = 0;
+    let t: ReturnType<typeof setTimeout>;
+    function next() {
+      setStage(s => (s + 1) % 6);
+      t = setTimeout(next, seq[i++ % seq.length]);
+    }
+    t = setTimeout(next, seq[0]);
+    return () => clearTimeout(t);
+  }, []);
+
+  return (
+    <section className="section" style={{ paddingTop: 40 }}>
+      <div className="wrap">
+        <div className="hero-grid" style={{ alignItems: 'center' }}>
+          <Reveal>
+            <Eyebrow>North AI</Eyebrow>
+            <h2 style={{ font: '700 clamp(34px,4.5vw,56px)/1.05 var(--font-display)', letterSpacing: '-0.025em', margin: '16px 0' }}>
+              Grounded in your <span className="grad-text">workspace</span>.
+            </h2>
+            <p style={{ color: 'var(--fg-2)', fontSize: 17, lineHeight: 1.55, maxWidth: 480 }}>
+              North AI runs on your machine via Ollama. It reads your journal, habits, finances
+              and subs as context — then answers in plain English, with the exact entries it grounded each claim in.
+            </p>
+            <ul style={{ listStyle: 'none', display: 'grid', gap: 10, marginTop: 22 }}>
+              {[
+                'Citations for every figure — open the source entry in a click.',
+                'Switch models without losing context — gemma, llama, qwen, any GGUF.',
+                'Airplane-mode safe — no network, no telemetry, no quotas.',
+              ].map((s, i) => (
+                <li key={i} style={{ paddingLeft: 26, position: 'relative', color: 'var(--fg-2)', fontSize: 14, lineHeight: '22px' }}>
+                  <span style={{ position: 'absolute', left: 0, top: 8, width: 14, height: 6, borderRadius: 3, background: 'linear-gradient(90deg, var(--primary-400), var(--accent-pink))' }} />
+                  {s}
+                </li>
+              ))}
+            </ul>
+          </Reveal>
+          <Reveal delay={150}>
+            <div className="ai-demo">
+              <div className="ai-prompt">
+                <div className="ai-avatar user">J</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                    <span style={{ fontWeight: 500, color: 'var(--fg-1)', fontSize: 13 }}>You</span>
+                    <span style={{ color: 'var(--fg-4)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>14:06</span>
+                  </div>
+                  <div className="ai-msg">Where is my May money going? Am I on track to come in under budget?</div>
+                  <div className="ai-context">
+                    <span className="ctx">📁 Finance · May</span>
+                    <span className="ctx">📁 Subscriptions</span>
+                  </div>
+                </div>
               </div>
-              <div style={{ height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.06)' }}>
-                <div style={{ height: '100%', borderRadius: 99, background: col as string, width: `${pct}%` }} />
+              <div className="ai-prompt" style={{ background: 'rgba(139,124,255,0.06)', borderColor: 'rgba(139,124,255,0.2)' }}>
+                <div className="ai-avatar"><Icon name="sparkles" size={14} /></div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                    <span style={{ fontWeight: 500, color: 'var(--fg-1)', fontSize: 13 }}>North AI</span>
+                    <span className="ctx" style={{ background: 'rgba(61,255,152,0.10)', color: 'var(--accent-green)', borderColor: 'rgba(61,255,152,0.2)' }}>gemma3:12b · local</span>
+                    <span style={{ color: 'var(--fg-4)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>14:06</span>
+                  </div>
+                  <div className="ai-msg">
+                    {stage >= 1 && <>Short answer: you&apos;re <b>14 days into May</b> with <b>₹140 spent</b> against a <b>₹15,000 budget</b> — that&apos;s <b>0.9%</b> burn. </>}
+                    {stage >= 2 && <>100% of spend so far is <span className="pill">Subscriptions · Netflix</span> — </>}
+                    {stage >= 3 && <>Food, transport, shopping are all at <b>₹0</b> (unusual for week 2). </>}
+                    {stage >= 4 && <>Two more renewals: <span className="pill">Claude · 28 May · ₹1,740</span> and <span className="pill">Cursor · 4 Jun · ₹1,672</span>. </>}
+                    {stage >= 5 && <>Projected end-of-month: <b>₹1,880</b> — closing May with a <b>₹13,120 surplus</b>. </>}
+                    {stage < 5 && <span className="ai-typing"><span /><span /><span /></span>}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-default)' }}>
+                <Icon name="search" size={14} style={{ color: 'var(--fg-4)' }} />
+                <span style={{ color: 'var(--fg-4)', fontSize: 13 }}>Ask anything about your journal, habits, finance, subs…</span>
+                <span style={{ marginLeft: 'auto', padding: '2px 6px', background: 'rgba(255,255,255,0.06)', borderRadius: 4, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-4)' }}>⌘K</span>
               </div>
             </div>
-          ))}
+          </Reveal>
         </div>
       </div>
-    ),
-  },
-  {
-    title: 'Habits',
-    desc: 'Build streaks, track consistency, and visualize your progress over time.',
-    mockup: (
-      <div style={{ background: '#0e0e17', borderRadius: 10, padding: 16, minHeight: 200 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>This week</span>
-          <div style={{ display: 'flex', gap: 4 }}>
-            {['M','T','W','T','F','S','S'].map((d, i) => (
-              <div key={i} style={{ width: 20, height: 20, borderRadius: 4, background: i < 5 ? 'rgba(107,124,230,0.35)' : 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: i < 5 ? '#9b8cff' : 'rgba(255,255,255,0.25)' }}>{d}</div>
-            ))}
-          </div>
-        </div>
-        {[['🏃 Morning run', 18, true], ['📚 Reading', 9, true], ['🧘 Meditation', 24, false], ['🚿 Cold shower', 6, true]].map(([h, streak, done]) => (
-          <div key={h as string} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-            <div style={{ width: 22, height: 22, borderRadius: '50%', background: done ? 'linear-gradient(135deg,#6b7ce6,#9b8cff)' : 'rgba(255,255,255,0.08)', border: done ? 'none' : '1px solid rgba(255,255,255,0.12)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: 'white' }}>{done ? '✓' : ''}</div>
-            <span style={{ flex: 1, fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{(h as string).split(' ').slice(1).join(' ')}</span>
-            <span style={{ fontSize: 10, color: '#9b8cff', fontFamily: 'monospace' }}>🔥 {streak as number}d</span>
-          </div>
-        ))}
-      </div>
-    ),
-  },
-  {
-    title: 'Subscriptions',
-    desc: 'Never miss a renewal. Track all your subscriptions and see 12-month billing forecasts.',
-    mockup: (
-      <div style={{ background: '#0e0e17', borderRadius: 10, padding: 16, minHeight: 200 }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          <div style={{ flex: 1, borderRadius: 8, padding: '10px 8px', background: 'rgba(107,124,230,0.1)', border: '1px solid rgba(107,124,230,0.2)' }}>
-            <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginBottom: 3 }}>MONTHLY</div>
-            <div style={{ fontSize: 15, color: '#9b8cff', fontWeight: 700 }}>₹3,240</div>
-          </div>
-          <div style={{ flex: 1, borderRadius: 8, padding: '10px 8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginBottom: 3 }}>ACTIVE</div>
-            <div style={{ fontSize: 15, color: 'white', fontWeight: 700 }}>8</div>
-          </div>
-          <div style={{ flex: 1, borderRadius: 8, padding: '10px 8px', background: 'rgba(248,113,113,0.07)', border: '1px solid rgba(248,113,113,0.2)' }}>
-            <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginBottom: 3 }}>DUE SOON</div>
-            <div style={{ fontSize: 15, color: '#f87171', fontWeight: 700 }}>2</div>
-          </div>
-        </div>
-        {[['🎵 Spotify', '₹119', '2d'], ['☁️ iCloud', '₹75', '5d'], ['📺 Netflix', '₹499', '12d']].map(([s, amt, due]) => (
-          <div key={s as string} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-            <span style={{ fontSize: 14 }}>{(s as string).split(' ')[0]}</span>
-            <span style={{ flex: 1, fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>{(s as string).split(' ').slice(1).join(' ')}</span>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginRight: 6 }}>in {due as string}</span>
-            <span style={{ fontSize: 12, color: '#9b8cff', fontWeight: 600 }}>{amt as string}</span>
-          </div>
-        ))}
-      </div>
-    ),
-  },
-];
+    </section>
+  );
+}
 
-// ─────────────────────────────────────────────
-// Features
-// ─────────────────────────────────────────────
-const FEATURES = [
-  { icon: '📓', title: 'Daily Journal', desc: 'Rich journaling with mood tracking, AI summaries, and semantic search across your past entries.' },
-  { icon: '🔥', title: 'Habit Tracking', desc: "Build streaks, track consistency, get reminded at your chosen time. Schedule-aware so weekly habits don't penalise rest days." },
-  { icon: '💳', title: 'Financial Tracking', desc: 'Log income and expenses, set category budgets, import bank statements (CSV / Excel / PDF), and get AI category insights.' },
-  { icon: '🔄', title: 'Subscription Manager', desc: 'Track every recurring charge, get renewal alerts up to 7 days ahead, and see a 12-month billing forecast.' },
-  { icon: '🔔', title: 'Smart Notifications', desc: 'Morning briefing, habit reminders, subscription alerts, and budget warnings — all configurable with quiet hours.' },
-  { icon: '🤖', title: 'AI that knows your life', desc: 'Ask about your spending patterns, journal entries, habit history, or get a unified life reflection. Fully local or cloud AI.' },
-];
-
-const PROVIDERS = [
-  { name: 'LM Studio', label: 'Local · Free' }, { name: 'Ollama', label: 'Local · Free' },
-  { name: 'OpenAI', label: 'GPT-4o' }, { name: 'Anthropic', label: 'Claude' },
-  { name: 'Gemini', label: 'Google' }, { name: 'Groq', label: 'Fast inference' },
-  { name: 'Mistral', label: 'Open weights' }, { name: 'Custom', label: 'Any OpenAI-compat' },
-];
-
-// ─────────────────────────────────────────────
-// Main Landing component
-// ─────────────────────────────────────────────
 export function Landing() {
   const release = useLatestRelease();
 
-  return (
-    <div style={{ fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}
-      className="min-h-screen bg-[#0a0a0f] text-white overflow-x-hidden">
+  const MODULES = [
+    { ico: 'book', title: 'Journal', desc: "One page per day — mood, tags, summary. AI auto-fills highlights and gratitude after you save.", tag: '↳ Day 134 of 2025' },
+    { ico: 'coins', title: 'Finance', desc: "Income, expenses, budgets. Bank SMS parsing — local, private, no Plaid in the loop.", tag: '↳ May · ₹140 spent' },
+    { ico: 'repeat', title: 'Subscriptions', desc: "Track every recurring charge, see what's due in the next 14 days, cancel in two clicks.", tag: '↳ 6 active · ₹2,389/mo' },
+    { ico: 'flame', title: 'Habits', desc: "Nine habits, daily check-ins, heatmap. AI surfaces sleep + deep work patterns.", tag: '↳ 29-day streak' },
+    { ico: 'message', title: 'AI Chat', desc: "A local LLM reads your workspace and reflects back. Grounded answers, with citations.", tag: '↳ Ollama · localhost' },
+    { ico: 'settings', title: 'Settings', desc: "Theme, accent, density, AI model, integrations. Export your whole life as JSON, anytime.", tag: '↳ v1.0.20 · indie' },
+  ];
 
-      {/* Ambient glow */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div style={{ position: 'absolute', top: '-20%', left: '50%', transform: 'translateX(-50%)', width: 900, height: 600, background: 'radial-gradient(ellipse at center,rgba(107,124,230,0.12) 0%,transparent 70%)' }} />
+  const SHOWCASES = [
+    { eyebrow: 'Journal', flip: false, title: 'One page per day. Mood, tags, notes.', body: "Capture the day in 30 seconds — mood, tags, a quick summary. North AI auto-fills highlights, wins, learnings and gratitude after you save.", bullets: ['Calendar, streaks, and a year-in-review built in.', 'Habit ↔ mood correlation over a 90-day window.', 'Semantic search — finds what you meant, not what you typed.'], image: '/feature-journal.png' },
+    { eyebrow: 'Finance', flip: true, title: "Where the money went — privately.", body: "Income, expenses, budgets, subscriptions — one place. Locally tracked, privately analyzed. Ask North AI to forecast end-of-month before it surprises you.", bullets: ["Bank SMS / statement parsing — no Plaid, no third-party.", "Budgets, top categories, savings rate, all at a glance.", "Reflect on finances with grounded, on-device context."], image: '/feature-finance.png' },
+    { eyebrow: 'Habits', flip: false, title: 'Streaks, patterns, gentle nudges.', body: "Nine habits, tracked daily, drawn into a heatmap. North AI watches the patterns and tells you what to lock down tonight.", bullets: ['Daily check-ins with sleep, deep work, water, running.', "Habit ↔ mood deltas — see what actually moves your week.", 'Streak protection, restarts, and paused-state — no shame.'], image: '/feature-habits.png' },
+    { eyebrow: 'Subscriptions', flip: true, title: 'Six recurring charges, two clicks to cancel.', body: "Track every monthly burn, see what's due in the next 14 days, and stop the slow leak. Calendar view shows the exact day each card gets hit.", bullets: ['Active / paused / trial states for every subscription.', 'Yearly projection, daily run-rate, upcoming renewals.', 'Cancellation flow with deep-links to the provider.'], image: '/feature-subscriptions.png' },
+  ];
+
+  const PRIVACY_ITEMS = [
+    { ico: 'cpu', title: 'Runs locally', desc: 'Ollama on your machine. The model is yours. The data is yours. The compute is yours.', cls: 'alt' },
+    { ico: 'cloudOff', title: 'No cloud — by design', desc: 'Zero outbound calls. Airplane-mode safe. No analytics, no telemetry, no account.', cls: '' },
+    { ico: 'database', title: 'One file: SQLite', desc: 'Everything lives in ~/Library/Application Support/North/. Back it up like any file.', cls: 'alt-2' },
+    { ico: 'shield', title: 'Export anytime', desc: 'JSON + Markdown bundle of journal, habits, finance and subs. No lock-in. Walk away clean.', cls: 'alt-3' },
+  ];
+
+  const MARQUEE_ITEMS = [
+    { ico: 'book', t: 'Journal' }, { ico: 'flame', t: 'Habits' }, { ico: 'coins', t: 'Finance' },
+    { ico: 'repeat', t: 'Subscriptions' }, { ico: 'message', t: 'AI Chat' }, { ico: 'cpu', t: 'Local LLM' },
+    { ico: 'shield', t: 'Private' }, { ico: 'zap', t: 'Fast' },
+  ];
+  const doubled = [...MARQUEE_ITEMS, ...MARQUEE_ITEMS];
+
+  return (
+    <div className="page">
+      {/* Hero */}
+      <section className="hero">
+        <div className="wrap">
+          <div className="hero-grid">
+            <Reveal>
+              <Eyebrow live>Early access · invite only</Eyebrow>
+              <h1>Your life,<br />on your <span className="grad-text">machine.</span></h1>
+              <p className="lede">
+                North OS is a private, AI-native operating layer for your week —
+                journal, habits, finances, and subscriptions in one workspace.
+                Runs locally via Ollama. Nothing leaves your laptop.
+              </p>
+              <div style={{ marginTop: 30, marginBottom: 16 }}>
+                <RequestForm release={release} />
+              </div>
+              <div className="hero-meta">
+                <div className="item"><span className="check">✓</span>100% on-device</div>
+                <div className="item"><span className="check">✓</span>macOS &amp; Windows</div>
+                <div className="item"><span className="check">✓</span>Free for early access</div>
+              </div>
+            </Reveal>
+            <div className="hero-visual">
+              <div className="preview-glow" />
+              <div className="preview-card">
+                <img src="/feature-dashboard.png" alt="North OS dashboard" />
+              </div>
+              <FloatChip cls="fc-1" ico="flame" color="#FFB86B" bg="rgba(255,184,107,0.12)" label="29-day streak" sub="habits" />
+              <FloatChip cls="fc-2" ico="cpu" color="#B8A5FF" bg="rgba(184,165,255,0.12)" label="gemma3:12b" sub="local · 5.7 GB" />
+              <FloatChip cls="fc-3" ico="coins" color="#3DFF98" bg="rgba(61,255,152,0.12)" label="₹84,860 saved" sub="this month" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Marquee */}
+      <div className="marquee" style={{ marginTop: 64 }}>
+        <div className="marquee-track">
+          {doubled.map((it, i) => (
+            <div key={i} className="mq-item">
+              <span className="dot" /><Icon name={it.ico} size={18} />{it.t}
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* ════ NAV ════ */}
-      <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50, borderBottom: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(20px)', backgroundColor: 'rgba(10,10,15,0.85)' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 24px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <img src="/favicon.png" alt="North OS" style={{ width: 30, height: 30, borderRadius: 8 }} />
-            <span style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em' }}>North OS</span>
+      {/* Stats */}
+      <section className="wrap" style={{ marginTop: 64 }}>
+        <Reveal>
+          <div className="stats">
+            <div className="stat"><div className="num"><Counter to={100} suffix="%" /></div><div className="label">On-device</div><div className="delta">Zero cloud calls</div></div>
+            <div className="stat"><div className="num"><Counter to={5.7} decimals={1} suffix=" GB" /></div><div className="label">Default model</div><div className="delta">gemma3:12b · local</div></div>
+            <div className="stat"><div className="num"><Counter to={6} /></div><div className="label">Modules</div><div className="delta">One workspace</div></div>
+            <div className="stat"><div className="num">~<Counter to={142} suffix="MB" /></div><div className="label">Your data</div><div className="delta">SQLite · ~/Library</div></div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-            {([['#features','Features'],['#screenshots','Screenshots']] as [string,string][]).map(([href, label]) => (
-              <a key={href} href={href} style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', textDecoration: 'none', transition: 'color .15s' }}
-                onMouseEnter={e => e.currentTarget.style.color = 'white'}
-                onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}>
-                {label}
-              </a>
-            ))}
-            <Link to="/tutorials" style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', textDecoration: 'none', transition: 'color .15s' }}
-              onMouseEnter={e => e.currentTarget.style.color = 'white'}
-              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}>
-              Tutorials
-            </Link>
-            <Link to="/changelog" style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', textDecoration: 'none', transition: 'color .15s' }}
-              onMouseEnter={e => e.currentTarget.style.color = 'white'}
-              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}>
-              Changelog
-            </Link>
-            <a href="#request-access"
-              style={{ padding: '7px 18px', borderRadius: 9, background: 'linear-gradient(135deg,#6b7ce6,#9b8cff)', border: 'none', color: 'white', fontWeight: 600, fontSize: 13, cursor: 'pointer', letterSpacing: '-0.01em', textDecoration: 'none' }}>
-              Request Access
-            </a>
+        </Reveal>
+      </section>
+
+      {/* Modules */}
+      <section className="section">
+        <div className="wrap">
+          <Reveal>
+            <div className="section-head">
+              <Eyebrow>Six modules · One workspace</Eyebrow>
+              <h2>Everything you keep <span className="aurora-text">scattered</span>, in one place.</h2>
+              <p>Most weeks live in five tabs and a notes app. North OS replaces them with one sober dark surface that already knows your week.</p>
+            </div>
+          </Reveal>
+          <div className="modules">
+            {MODULES.map((m, i) => <Reveal key={m.title} delay={i * 70}><ModuleCard {...m} /></Reveal>)}
           </div>
         </div>
-      </nav>
-
-      {/* ════ HERO ════ */}
-      <section style={{ maxWidth: 860, margin: '0 auto', padding: '160px 24px 90px', textAlign: 'center' }}>
-        <div style={{ display: 'inline-flex', marginBottom: 28 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 14px', borderRadius: 100, border: '1px solid rgba(107,124,230,0.3)', background: 'rgba(107,124,230,0.08)', fontSize: 12, color: 'rgba(155,140,255,0.9)' }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#6b7ce6', display: 'inline-block', boxShadow: '0 0 6px #6b7ce6' }} />
-            Privacy-first · Local-first AI
-          </span>
-        </div>
-        <h1 style={{ fontSize: 'clamp(44px,7vw,76px)', fontWeight: 700, lineHeight: 1.04, letterSpacing: '-0.03em', color: 'white', marginBottom: 14 }}>
-          Your personal life,<br />
-          <span style={{ background: 'linear-gradient(135deg,#6b7ce6 0%,#9b8cff 50%,#c084fc 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-            organized and understood.
-          </span>
-        </h1>
-        <p style={{ fontSize: 18, lineHeight: 1.65, color: 'rgba(255,255,255,0.45)', maxWidth: 520, margin: '0 auto 48px', letterSpacing: '-0.01em' }}>
-          A private, AI-powered desktop app for journaling, habits, finances, and subscriptions. Runs 100% on your machine.
-        </p>
-
-        <div id="request-access">
-          <RequestForm release={release} />
-        </div>
-
-        <p style={{ marginTop: 16, fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>
-          Invite-only · Runs locally · No subscription
-        </p>
       </section>
 
-      {/* ════ SCREENSHOTS ════ */}
-      <section id="screenshots" style={{ maxWidth: 1200, margin: '0 auto', padding: '80px 24px' }}>
-        <div style={{ textAlign: 'center', marginBottom: 52 }}>
-          <p style={{ fontSize: 12, letterSpacing: '0.12em', color: '#6b7ce6', textTransform: 'uppercase', marginBottom: 12 }}>See it in action</p>
-          <h2 style={{ fontSize: 'clamp(28px,4vw,40px)', fontWeight: 700, letterSpacing: '-0.02em', color: 'white' }}>
-            Every corner of your life, in one place.
-          </h2>
-        </div>
+      {/* AI Demo */}
+      <AIDemoSection />
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px,1fr))', gap: 16 }}>
-          {SCREENS.map((s) => (
-            <div key={s.title} style={{ borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.07)', background: '#0d0d14', transition: 'border-color .2s, transform .2s' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(107,124,230,0.35)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(255,255,255,0.07)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.02)' }}>
-                {['#f87171','#fbbf24','#4ade80'].map((c) => <div key={c} style={{ width: 10, height: 10, borderRadius: '50%', background: c, opacity: 0.6 }} />)}
-                <span style={{ marginLeft: 8, fontSize: 11, color: 'rgba(255,255,255,0.2)' }}>North OS — {s.title}</span>
-              </div>
-              <div style={{ padding: 12 }}>{s.mockup}</div>
-              <div style={{ padding: '12px 16px 16px' }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: 'white', marginBottom: 4 }}>{s.title}</div>
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', lineHeight: 1.5 }}>{s.desc}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ════ FEATURES ════ */}
-      <section id="features" style={{ maxWidth: 1100, margin: '0 auto', padding: '80px 24px' }}>
-        <div style={{ textAlign: 'center', marginBottom: 52 }}>
-          <p style={{ fontSize: 12, letterSpacing: '0.12em', color: '#6b7ce6', textTransform: 'uppercase', marginBottom: 12 }}>What it does</p>
-          <h2 style={{ fontSize: 'clamp(28px,4vw,40px)', fontWeight: 700, letterSpacing: '-0.02em', color: 'white' }}>
-            Everything that matters. Nothing that doesn't.
-          </h2>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 16 }}>
-          {FEATURES.map((f) => (
-            <div key={f.title} style={{ padding: '28px', borderRadius: 14, border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)', transition: 'border-color .2s' }}
-              onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(107,124,230,0.25)'}
-              onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(255,255,255,0.07)'}>
-              <div style={{ width: 38, height: 38, borderRadius: 9, marginBottom: 16, background: 'rgba(107,124,230,0.12)', border: '1px solid rgba(107,124,230,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{f.icon}</div>
-              <h3 style={{ fontSize: 15, fontWeight: 600, color: 'white', marginBottom: 8, letterSpacing: '-0.01em' }}>{f.title}</h3>
-              <p style={{ fontSize: 14, lineHeight: 1.65, color: 'rgba(255,255,255,0.4)', margin: 0 }}>{f.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ════ PRIVACY ════ */}
-      <section style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 24px 80px' }}>
-        <div style={{ borderRadius: 20, padding: '60px 64px', border: '1px solid rgba(107,124,230,0.2)', background: 'linear-gradient(135deg,rgba(107,124,230,0.06) 0%,rgba(10,10,15,0) 60%)', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: -60, right: -60, width: 300, height: 300, background: 'radial-gradient(circle,rgba(107,124,230,0.1) 0%,transparent 70%)', pointerEvents: 'none' }} />
-          <div style={{ maxWidth: 520 }}>
-            <p style={{ fontSize: 12, letterSpacing: '0.12em', color: '#6b7ce6', textTransform: 'uppercase', marginBottom: 16 }}>Privacy First</p>
-            <h2 style={{ fontSize: 'clamp(26px,3.5vw,38px)', fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.15, marginBottom: 18, color: 'white' }}>
-              Your data belongs to you.<br />Full stop.
-            </h2>
-            <p style={{ fontSize: 16, lineHeight: 1.7, color: 'rgba(255,255,255,0.4)', marginBottom: 28 }}>
-              North OS runs locally on your device. Your thoughts, emotions, routines, and finances never leave your machine. No tracking. No telemetry. No cloud unless you choose it.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {[
-                'Runs entirely on your machine',
-                'No accounts, no sign-up required',
-                'Zero telemetry or analytics',
-                'SQLite database — your data is a single local file',
-                'Wipe all data with one click anytime',
-              ].map((item) => (
-                <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'rgba(255,255,255,0.6)' }}>
-                  <span style={{ color: '#6b7ce6', fontSize: 16 }}>✓</span>{item}
+      {/* Showcases */}
+      {SHOWCASES.map(sc => (
+        <section key={sc.eyebrow} className="wrap">
+          <div className={`showcase${sc.flip ? ' flip' : ''}`}>
+            <Reveal>
+              <div className="showcase-copy">
+                <Eyebrow>{sc.eyebrow}</Eyebrow>
+                <h3>{sc.title}</h3>
+                <p>{sc.body}</p>
+                <ul className="bullets">{sc.bullets.map((b, i) => <li key={i}>{b}</li>)}</ul>
+                <div style={{ marginTop: 24 }}>
+                  <Button variant="ghost" iconRight="arrow" to="/features">See it in full</Button>
                 </div>
-              ))}
-            </div>
+              </div>
+            </Reveal>
+            <Reveal delay={150}><ShowcaseArt image={sc.image} /></Reveal>
           </div>
-        </div>
-      </section>
+        </section>
+      ))}
 
-      {/* ════ AI PROVIDERS ════ */}
-      <section id="ai-providers" style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 24px 80px' }}>
-        <div style={{ textAlign: 'center', marginBottom: 44 }}>
-          <p style={{ fontSize: 12, letterSpacing: '0.12em', color: '#6b7ce6', textTransform: 'uppercase', marginBottom: 12 }}>AI providers</p>
-          <h2 style={{ fontSize: 'clamp(26px,3.5vw,38px)', fontWeight: 700, letterSpacing: '-0.02em', color: 'white', marginBottom: 10 }}>Your AI. Your choice.</h2>
-          <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.4)', maxWidth: 440, margin: '0 auto' }}>Start with a free local model for full privacy, or use any cloud provider. Switch any time from Settings.</p>
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
-          {PROVIDERS.map((p) => (
-            <div key={p.name} style={{ padding: '10px 20px', borderRadius: 100, border: '1px solid rgba(107,124,230,0.25)', background: 'rgba(107,124,230,0.07)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 13, fontWeight: 500, color: 'rgba(255,255,255,0.75)' }}>{p.name}</span>
-              <span style={{ fontSize: 11, color: 'rgba(107,124,230,0.5)' }}>·</span>
-              <span style={{ fontSize: 11, color: 'rgba(155,140,255,0.55)' }}>{p.label}</span>
+      {/* Privacy */}
+      <section className="section">
+        <div className="wrap">
+          <Reveal>
+            <div className="section-head" style={{ maxWidth: 720 }}>
+              <Eyebrow>Privacy &amp; ownership</Eyebrow>
+              <h2>Your data <span className="aurora-text">never leaves</span> this laptop.</h2>
+              <p>The default is local. Not because it&apos;s a feature — because there isn&apos;t anywhere else for it to go.</p>
             </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ════ FINAL CTA ════ */}
-      <section style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 24px 120px' }}>
-        <div style={{ textAlign: 'center', padding: '80px 40px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 600, height: 400, background: 'radial-gradient(ellipse,rgba(107,124,230,0.08) 0%,transparent 70%)', pointerEvents: 'none' }} />
-          <p style={{ fontSize: 12, letterSpacing: '0.12em', color: '#6b7ce6', textTransform: 'uppercase', marginBottom: 20 }}>Get started</p>
-          <h2 style={{ fontSize: 'clamp(30px,5vw,52px)', fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.1, color: 'white', marginBottom: 18 }}>
-            Start understanding yourself.
-          </h2>
-          <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.4)', maxWidth: 400, margin: '0 auto 40px', lineHeight: 1.65 }}>
-            Private, powerful, and runs entirely on your machine.
-          </p>
-          <RequestForm release={release} compact />
-        </div>
-      </section>
-
-      {/* ════ FOOTER ════ */}
-      <footer style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: '32px 24px 40px', maxWidth: 1100, margin: '0 auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, marginBottom: 24 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <img src="/favicon.png" alt="North OS" style={{ width: 24, height: 24, borderRadius: 6 }} />
-            <span style={{ fontSize: 13, fontWeight: 500, color: 'rgba(255,255,255,0.5)' }}>North OS</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
-            {([['#features','Features'],['#screenshots','Screenshots']] as [string,string][]).map(([href, label]) => (
-              <a key={href} href={href} style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', textDecoration: 'none' }}
-                onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.6)'}
-                onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.35)'}>
-                {label}
-              </a>
+          </Reveal>
+          <div className="modules">
+            {PRIVACY_ITEMS.map((it, i) => (
+              <Reveal key={it.title} delay={i * 70}>
+                <div className={`privacy-panel ${it.cls}`}>
+                  <div className="ico"><Icon name={it.ico} size={18} /></div>
+                  <h4>{it.title}</h4>
+                  <p>{it.desc}</p>
+                </div>
+              </Reveal>
             ))}
-            <Link to="/tutorials" style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', textDecoration: 'none' }}
-              onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.6)'}
-              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.35)'}>
-              Tutorials
-            </Link>
-            <Link to="/changelog" style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', textDecoration: 'none' }}
-              onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.6)'}
-              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.35)'}>
-              Changelog
-            </Link>
-            <a href="mailto:blankspacetechnologies@gmail.com"
-              style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', textDecoration: 'none' }}
-              onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.6)'}
-              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.35)'}>
-              Feedback
-            </a>
           </div>
         </div>
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>© 2025 Blankspace Technologies</span>
-          <a href="mailto:blankspacetechnologies@gmail.com"
-            style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', textDecoration: 'none' }}
-            onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.45)'}
-            onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.2)'}>
-            blankspacetechnologies@gmail.com
-          </a>
-        </div>
-      </footer>
+      </section>
+
+      {/* Final CTA */}
+      <section className="wrap" style={{ marginTop: 80, marginBottom: 80 }}>
+        <Reveal>
+          <div className="cta-final">
+            <Eyebrow live>Early access · invite only</Eyebrow>
+            <h2 style={{ marginTop: 16 }}>Take your week back.</h2>
+            <p>Six modules, one workspace, zero cloud. Request access below.</p>
+            <div style={{ maxWidth: 560, margin: '0 auto' }}>
+              <RequestForm release={release} compact />
+            </div>
+            <div style={{ marginTop: 24, color: 'var(--fg-4)', fontSize: 13, fontFamily: 'var(--font-mono)' }}>
+              macOS · Windows · Local AI via Ollama
+            </div>
+          </div>
+        </Reveal>
+      </section>
     </div>
   );
 }

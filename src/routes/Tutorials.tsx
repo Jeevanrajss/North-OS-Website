@@ -524,29 +524,12 @@ export function Tutorials() {
   const sidebarW = 220;
 
   return (
-    <div style={{ fontFamily: 'Inter, system-ui, -apple-system, sans-serif', minHeight: '100vh', background: '#0a0a0f', color: 'white', display: 'flex', flexDirection: 'column' }}>
-
-      {/* ── Top nav ── */}
-      <nav style={{ position: 'sticky', top: 0, zIndex: 50, height: 56, borderBottom: '1px solid rgba(255,255,255,0.07)', backdropFilter: 'blur(20px)', background: 'rgba(10,10,15,0.9)', display: 'flex', alignItems: 'center', padding: '0 24px', gap: 16 }}>
-        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', color: 'white' }}>
-          <img src="/favicon.png" alt="North OS" style={{ width: 26, height: 26, borderRadius: 7 }} />
-          <span style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.01em' }}>North OS</span>
-        </Link>
-        <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 14 }}>/</span>
-        <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)' }}>Tutorials & How-to Guides</span>
-        <div style={{ marginLeft: 'auto' }}>
-          <Link to="/" style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', textDecoration: 'none', padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }}
-            onMouseEnter={e => { e.currentTarget.style.color = 'white'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.22)'; }}
-            onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.4)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; }}>
-            ← Back to home
-          </Link>
-        </div>
-      </nav>
+    <div style={{ display: 'flex', flexDirection: 'column', position: 'relative', zIndex: 5 }}>
 
       <div style={{ display: 'flex', flex: 1, maxWidth: 1100, margin: '0 auto', width: '100%', padding: '0 24px' }}>
 
         {/* ── Sidebar ── */}
-        <aside style={{ width: sidebarW, flexShrink: 0, paddingTop: 36, paddingRight: 24, position: 'sticky', top: 56, height: 'calc(100vh - 56px)', overflowY: 'auto' }}>
+        <aside style={{ width: sidebarW, flexShrink: 0, paddingTop: 36, paddingRight: 24, position: 'sticky', top: 64, height: 'calc(100vh - 64px)', overflowY: 'auto' }}>
           <p style={{ fontSize: 10.5, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', marginBottom: 12, marginLeft: 4 }}>Guides</p>
           <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {SECTIONS.map((s) => (
@@ -564,11 +547,11 @@ export function Tutorials() {
             <p style={{ fontSize: 12, color: 'rgba(155,140,255,0.6)', lineHeight: 1.55, margin: '0 0 10px' }}>
               Not finding your answer?
             </p>
-            <a href="https://github.com/Jeevanrajss/North-OS/issues" target="_blank" rel="noopener noreferrer"
+            <a href="mailto:blankspacetechnologies@gmail.com"
               style={{ fontSize: 12, color: '#9b8cff', textDecoration: 'none' }}
               onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
               onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}>
-              Open a GitHub issue →
+              Email support →
             </a>
           </div>
         </aside>
