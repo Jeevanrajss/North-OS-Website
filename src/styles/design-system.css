@@ -275,9 +275,9 @@ img { display: block; max-width: 100%; }
 .module .tag { margin-top: 16px; display: inline-flex; align-items: center; gap: 6px; font: 500 11px/1 var(--font-mono); color: var(--fg-4); text-transform: uppercase; letter-spacing: 0.08em; }
 
 /* ---- Showcase ---- */
-.showcase { display: grid; grid-template-columns: 0.85fr 1.15fr; gap: 48px; align-items: center; margin: 96px 0; padding: 32px 0; }
-.showcase.flip { grid-template-columns: 1.15fr 0.85fr; }
-.showcase.flip .showcase-art { order: -1; }
+.showcase { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; margin: 96px 0; padding: 32px 0; }
+.showcase.flip > div:first-child { order: 2; }
+.showcase.flip > div:last-child { order: 1; }
 @media (max-width: 920px) {
   .showcase, .showcase.flip { grid-template-columns: 1fr; gap: 32px; }
   .showcase.flip .showcase-art { order: 0; }
